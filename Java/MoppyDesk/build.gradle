@@ -12,7 +12,7 @@ apply plugin: 'application'
 sourceCompatibility = 1.8
 
 dependencies {
-    compile group: 'com.neuronrobotics', name: 'nrjavaserial', version: '3.13.0'
+    compile group: 'com.neuronrobotics', name: 'nrjavaserial', version: '3.9.3'
 
     // Use JUnit test framework
     testCompile 'junit:junit:4.12'
@@ -40,6 +40,9 @@ repositories {
     // Use jcenter for resolving your dependencies.
     // You can declare any Maven/Ivy/file repository here.
     jcenter()
+    flatDir {
+       dirs 'libs'
+   }
 }
 
 task getDeps(type: Copy) {
