@@ -4,22 +4,18 @@
  */
 package moppydesk;
 
+import moppydesk.inputs.MoppyMIDIInput;
 import moppydesk.inputs.MoppySequencer;
-import gnu.io.NoSuchPortException;
-import gnu.io.PortInUseException;
-import gnu.io.UnsupportedCommOperationException;
-import java.awt.EventQueue;
+import moppydesk.outputs.ReceiverMarshaller;
+import moppydesk.ui.MoppyControlWindow;
+
+import javax.swing.*;
+import java.awt.*;
 import java.io.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
-import javax.sound.midi.MidiUnavailableException;
-import javax.sound.midi.Receiver;
-import javax.swing.JOptionPane;
-import moppydesk.inputs.MoppyMIDIInput;
-import moppydesk.outputs.ReceiverMarshaller;
-import moppydesk.ui.MoppyControlWindow;
 
 /**
  *

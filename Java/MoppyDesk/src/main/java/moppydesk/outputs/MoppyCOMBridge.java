@@ -4,6 +4,7 @@ import gnu.io.NRSerialPort;
 import gnu.io.NoSuchPortException;
 import gnu.io.PortInUseException;
 import gnu.io.UnsupportedCommOperationException;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.logging.Level;
