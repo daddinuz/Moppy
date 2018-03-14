@@ -7,6 +7,13 @@
 #define NOTE_RESOLUTION     40
 
 /*
+ * Recognized MIDI status bytes
+ */
+#define NOTE_ON     0b1001
+#define NOTE_OFF    0b1000
+#define PITCH_BEND  0b1110
+
+/*
  * Pins
  */
 #define PIN_STEP1           2
@@ -32,6 +39,21 @@
  */
 #define MIN_PIN             PIN_STEP1
 #define MAX_PIN             PIN_DIR8
+
+/*
+ * Notes frequencies in microseconds
+ */
+const int microPeriods[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        30578, 28861, 27242, 25713, 24270, 22909, 21622, 20409, 19263, 18182, 17161, 16198, // C1 - B1
+        15289, 14436, 13621, 12856, 12135, 11454, 10811, 10205, 9632, 9091, 8581, 8099, // C2 - B2
+        7645, 7218, 6811, 6428, 6068, 5727, 5406, 5103, 4816, 4546, 4291, 4050, // C3 - B3
+        3823, 3609, 3406, 3214, 3034, 2864, 2703, 2552, 2408, 2273, 2146, 2025, // C4 - B4
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
 
 /*
  * NOTE:
@@ -100,7 +122,8 @@ void resetAll(void);
  * Entry point
  */
 void setup() {
-    Serial.begin(9600);                 // Start serial communication
+    Serial.begin(19200);                 // Start serial communication
+    Serial.print("setup... ");
 
     pinMode(PIN_STEP1, OUTPUT);         // Stepper 1
     pinMode(PIN_DIR1, OUTPUT);          // Direction 1
@@ -124,6 +147,8 @@ void setup() {
 
     Timer1.initialize(NOTE_RESOLUTION); // Set up a timer at the defined resolution
     Timer1.attachInterrupt(tick);       // Attach the tick function
+
+    Serial.println("done");
 }
 
 void loop() {
@@ -131,37 +156,46 @@ void loop() {
 
     // Only read if we have 3 bytes waiting
     if (Serial.available() > 2) {
-        // Watch for special 100-message to act on
-        if (Serial.peek() == 100) {
-            // command[0] will store the above peeked byte (will be discarded)
-            // Actually the only byte needed is stored in command[1]
-            // command[2] will be completely discarded
-            Serial.readBytes(message, sizeof(message));
+        Serial.readBytes(message, sizeof(message));
+        const byte status = message[0], data1 = message[1], data2 = message[2];
 
-            switch (message[1]) {
-                case 0:
-                    resetAll();
-                    break;
-                case 1:
-                    break;  // Connected
-                case 2:
-                    break;  // Disconnected
-                case 3:
-                    break;  // Sequence starting
-                case 4:
-                    break;  // Sequence stopping
-                default:
-                    resetAll();
-                    break;
+        const byte command = status >> 4; // 1000CCCC -> 1000
+        const byte channel = status & 0b1111; // 1000CCCC -> CCCC
+        const byte pin = (channel + 1) * 2;
+
+        uint16_t period;
+        switch (command) {
+            case NOTE_ON: {
+                period = (data2 > 0) ? (uint16_t) microPeriods[message[1]] / 80 : 0;
+                break;
             }
-
-            // Flush any remaining messages.
-            while (Serial.available() > 0) { Serial.read(); }
-        } else {
-            Serial.readBytes(message, sizeof(message));
-            currentPeriod[message[0]] = (message[1] << 8) | message[2];
+            case NOTE_OFF: {
+                period = 0;
+                break;
+            }
+            case PITCH_BEND: {
+                if (currentPeriod[pin] > 0) {
+                    period = (uint16_t) (
+                            currentPeriod[pin] / pow(2, 200 * (((data2 << 7) | data1) - 8192) / (1200 * 8192))
+                    );
+                } else {
+                    period = 0;
+                }
+                break;
+            }
+            default: {
+                return;
+            }
         }
+        currentPeriod[pin] = period;
     }
+
+    Serial.print("Got: ");
+    Serial.print(message[0], BIN);
+    Serial.print(' ');
+    Serial.print(message[1], BIN);
+    Serial.print(' ');
+    Serial.println(message[2], BIN);
 }
 
 /*
