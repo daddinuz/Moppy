@@ -1,17 +1,11 @@
 #include <Arduino.h>
 #include <TimerOne.h>
+#include <MIDI.h>
 
 /*
  * Notes resolution in microseconds
  */
 #define NOTE_RESOLUTION     40
-
-/*
- * Recognized MIDI status bytes
- */
-#define NOTE_ON     0b1001
-#define NOTE_OFF    0b1000
-#define PITCH_BEND  0b1110
 
 /*
  * Pins
@@ -34,11 +28,16 @@
 #define PIN_DIR7            15
 #define PIN_DIR8            17
 
-/* 
+/*
  * First and last pin being used for floppies, used for looping over all pins.
  */
 #define MIN_PIN             PIN_STEP1
 #define MAX_PIN             PIN_DIR8
+
+/*
+ * MIDI instance
+ */
+MIDI_CREATE_DEFAULT_INSTANCE()
 
 /*
  * Notes frequencies in microseconds
@@ -118,13 +117,14 @@ void togglePin(byte stepperPin, byte directionPin);
 
 void resetAll(void);
 
+void handleNoteOn(byte channel, byte pitch, byte velocity);
+
+void handleNoteOff(byte channel, byte pitch, byte velocity);
+
 /*
  * Entry point
  */
 void setup() {
-    Serial.begin(19200);                 // Start serial communication
-    Serial.print("setup... ");
-
     pinMode(PIN_STEP1, OUTPUT);         // Stepper 1
     pinMode(PIN_DIR1, OUTPUT);          // Direction 1
     pinMode(PIN_STEP2, OUTPUT);         // Stepper 2
@@ -148,54 +148,13 @@ void setup() {
     Timer1.initialize(NOTE_RESOLUTION); // Set up a timer at the defined resolution
     Timer1.attachInterrupt(tick);       // Attach the tick function
 
-    Serial.println("done");
+    MIDI.setHandleNoteOn(handleNoteOn);
+    MIDI.setHandleNoteOff(handleNoteOff);
+    MIDI.begin(MIDI_CHANNEL_OMNI);
 }
 
 void loop() {
-    static byte message[3] = {};
-
-    // Only read if we have 3 bytes waiting
-    if (Serial.available() > 2) {
-        Serial.readBytes(message, sizeof(message));
-        const byte status = message[0], data1 = message[1], data2 = message[2];
-
-        const byte command = status >> 4; // 1000CCCC -> 1000
-        const byte channel = status & 0b1111; // 1000CCCC -> CCCC
-        const byte pin = (channel + 1) * 2;
-
-        uint16_t period;
-        switch (command) {
-            case NOTE_ON: {
-                period = (data2 > 0) ? (uint16_t) microPeriods[message[1]] / 80 : 0;
-                break;
-            }
-            case NOTE_OFF: {
-                period = 0;
-                break;
-            }
-            case PITCH_BEND: {
-                if (currentPeriod[pin] > 0) {
-                    period = (uint16_t) (
-                            currentPeriod[pin] / pow(2, 200 * (((data2 << 7) | data1) - 8192) / (1200 * 8192))
-                    );
-                } else {
-                    period = 0;
-                }
-                break;
-            }
-            default: {
-                return;
-            }
-        }
-        currentPeriod[pin] = period;
-    }
-
-    Serial.print("Got: ");
-    Serial.print(message[0], BIN);
-    Serial.print(' ');
-    Serial.print(message[1], BIN);
-    Serial.print(' ');
-    Serial.println(message[2], BIN);
+    MIDI.read();
 }
 
 /*
@@ -268,4 +227,16 @@ void resetAll(void) {
         digitalWrite(pin + 1, LOW);
         currentState[pin + 1] = 0;          // Ready to go forward.
     }
+}
+
+void handleNoteOn(byte channel, byte pitch, byte velocity) {
+    const byte pin = (channel + 1) * 2;
+    const uint16_t period = (velocity > 0) ? (uint16_t) microPeriods[pitch] / 80 : 0;
+    currentPeriod[pin] = period;
+}
+
+void handleNoteOff(byte channel, byte pitch, byte velocity) {
+    const byte pin = (channel + 1) * 2;
+    const uint16_t period = 0;
+    currentPeriod[pin] = period;
 }
