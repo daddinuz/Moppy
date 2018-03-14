@@ -107,6 +107,11 @@ unsigned int currentTick[] = {
 };
 
 /*
+ *
+ */
+uint16_t playingNotes[8] = {0};
+
+/*
  * Functions declarations
  */
 void tick(void);
@@ -230,13 +235,36 @@ void resetAll(void) {
 }
 
 void handleNoteOn(byte channel, byte pitch, byte velocity) {
-    const byte pin = (channel + 1) * 2;
+    int floppy = -1;
+    for (int i = 0; i < sizeof(playingNotes) / sizeof(playingNotes[0]); i++) {
+        if (0 == playingNotes[i]) {
+            floppy = i;
+            break;
+        }
+    }
+    if (floppy < 0) {
+        return;
+    }
+    const int pin = (floppy + 1) * 2;
+    const uint16_t note = channel << 8 | pitch;
     const uint16_t period = (velocity > 0) ? (uint16_t) microPeriods[pitch] / 80 : 0;
+    playingNotes[floppy] = note;
     currentPeriod[pin] = period;
 }
 
 void handleNoteOff(byte channel, byte pitch, byte velocity) {
-    const byte pin = (channel + 1) * 2;
-    const uint16_t period = 0;
-    currentPeriod[pin] = period;
+    const int note = channel << 8 | pitch;
+    int floppy = -1;
+    for (int i = 0; i < sizeof(playingNotes) / sizeof(playingNotes[0]); i++) {
+        if (note == playingNotes[i]) {
+            floppy = i;
+            break;
+        }
+    }
+    if (floppy < 0) {
+        return;
+    }
+    const int pin = (floppy + 1) * 2;
+    playingNotes[floppy] = 0;
+    currentPeriod[pin] = 0;
 }
